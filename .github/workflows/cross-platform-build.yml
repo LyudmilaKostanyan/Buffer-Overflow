@@ -3,58 +3,90 @@ name: Buffer Overflow Test
 on: [push, pull_request]
 
 jobs:
-  build-and-test:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  ubuntu-gcc:
+    name: Ubuntu (GCC)
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install dependencies for Ubuntu and macOS
-        if: runner.os != 'Windows'
+      - name: Install GCC
         run: |
-          sudo apt-get update || true
-          sudo apt-get install -y g++ clang || true
-
-      - name: Install dependencies for Windows
-        if: runner.os == 'Windows'
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          install: >-
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-cmake
+          sudo apt-get update
+          sudo apt-get install -y g++
 
       - name: Compile without protection
-        shell: bash
         run: |
-          echo "=== Compiling without protection ==="
           g++ -o overflow main.cpp
           echo "=== Running without protection ==="
           ./overflow || true
 
       - name: Compile with stack protector
-        shell: bash
         run: |
-          echo "=== Compiling with stack protector ==="
           g++ -fstack-protector-all -o overflow_protected main.cpp
           echo "=== Running with stack protector ==="
           ./overflow_protected || true
 
       - name: Compile with AddressSanitizer
-        shell: bash
         run: |
-          echo "=== Compiling with AddressSanitizer ==="
-          if [ "$RUNNER_OS" = "macOS" ]; then
-            clang++ -fsanitize=address -g -O1 -o overflow_asan main.cpp
-          elif [ "$RUNNER_OS" = "Linux" ]; then
-            g++ -fsanitize=address -g -O1 -o overflow_asan main.cpp
-          else
-            echo "AddressSanitizer is not supported on Windows with MinGW. Skipping."
-            exit 0
-          fi
-          echo "=== Running with AddressSanitizer ==="
+          g++ -fsanitize=address -g -O1 -o overflow_asan main.cpp
+          echo "=== Running with AddressSanitizer (GCC) ==="
+          ASAN_OPTIONS=detect_stack_use_after_return=1 ./overflow_asan || true
+
+  ubuntu-clang:
+    name: Ubuntu (Clang)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang
+
+      - name: Compile without protection
+        run: |
+          clang++ -o overflow main.cpp
+          echo "=== Running without protection ==="
+          ./overflow || true
+
+      - name: Compile with stack protector
+        run: |
+          clang++ -fstack-protector-all -o overflow_protected main.cpp
+          echo "=== Running with stack protector ==="
+          ./overflow_protected || true
+
+      - name: Compile with AddressSanitizer
+        run: |
+          clang++ -fsanitize=address -g -O1 -o overflow_asan main.cpp
+          echo "=== Running with AddressSanitizer (Clang) ==="
+          ASAN_OPTIONS=detect_stack_use_after_return=1 ./overflow_asan || true
+
+  macos-clang:
+    name: macOS (Clang)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Compile without protection
+        run: |
+          clang++ -o overflow main.cpp
+          echo "=== Running without protection ==="
+          ./overflow || true
+
+      - name: Compile with stack protector
+        run: |
+          clang++ -fstack-protector-all -o overflow_protected main.cpp
+          echo "=== Running with stack protector ==="
+          ./overflow_protected || true
+
+      - name: Compile with AddressSanitizer
+        run: |
+          clang++ -fsanitize=address -g -O1 -o overflow_asan main.cpp
+          echo "=== Running with AddressSanitizer (macOS Clang) ==="
           ASAN_OPTIONS=detect_stack_use_after_return=1 ./overflow_asan || true
